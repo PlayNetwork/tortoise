@@ -548,14 +548,14 @@ defmodule Tortoise.Connection do
   end
 
   defp reset_keep_alive(%State{keep_alive: nil} = state) do
-    ref = Process.send_after(self(), :ping, state.connect.keep_alive * 1000)
+    ref = Process.send_after(self(), :ping, trunc(state.connect.keep_alive * .8) * 1000)
     %State{state | keep_alive: ref}
   end
 
   defp reset_keep_alive(%State{keep_alive: previous_ref} = state) do
     # Cancel the previous timer, just in case one was already set
     _ = Process.cancel_timer(previous_ref)
-    ref = Process.send_after(self(), :ping, state.connect.keep_alive * 1000)
+    ref = Process.send_after(self(), :ping, trunc(state.connect.keep_alive * .8) * 1000)
     %State{state | keep_alive: ref}
   end
 

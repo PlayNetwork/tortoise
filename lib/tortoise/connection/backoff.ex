@@ -21,7 +21,7 @@ defmodule Tortoise.Connection.Backoff do
   end
 
   def next(%State{max_interval: same, value: same} = state) do
-    current = state.min_interval
+    current = same
     {current, %State{state | value: current}}
   end
 

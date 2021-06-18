@@ -581,23 +581,36 @@ defmodule Tortoise.Connection do
   defp do_connect(server, %Connect{} = connect) do
     %Transport{type: transport, host: host, port: port, opts: opts} = server
 
-    with {:ok, socket} <- transport.connect(host, port, opts, 10000),
-         :ok = transport.send(socket, Package.encode(connect)),
-         {:ok, packet} <- transport.recv(socket, 4, 5000) do
-      try do
-        case Package.decode(packet) do
-          %Connack{status: :accepted} = connack ->
-            {connack, socket}
+    case transport.connect(host, port, opts, 15000) do
+      {:ok, socket} ->
+        with :ok = transport.send(socket, Package.encode(connect)),
+             {:ok, packet} <- transport.recv(socket, 4, 15000) do
+          try do
+            case Package.decode(packet) do
+              %Connack{status: :accepted} = connack ->
+                {connack, socket}
 
-          %Connack{status: {:refused, _reason}} = connack ->
-            connack
+              %Connack{status: {:refused, _reason}} = connack ->
+                connack
+            end
+          catch
+            :error, {:badmatch, _unexpected} ->
+              violation = %{expected: Connect, got: packet}
+              {:error, {:protocol_violation, violation}}
+          end
+        else
+          {:error, :closed} ->
+            {:error, :server_closed_connection}
+
+          {:error, :timeout} ->
+            if socket != nil do
+              transport.close(socket)
+            end
+            {:error, :connection_timeout}
+
+          {:error, other} ->
+            {:error, other}
         end
-      catch
-        :error, {:badmatch, _unexpected} ->
-          violation = %{expected: Connect, got: packet}
-          {:error, {:protocol_violation, violation}}
-      end
-    else
       {:error, :econnrefused} ->
         {:error, {:connection_refused, host, port}}
 

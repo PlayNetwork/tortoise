@@ -9,8 +9,8 @@ defmodule Tortoise.App do
     # start with client_id, and handler from config
 
     children = [
-      {Registry, [keys: :unique, name: Tortoise.Registry]},
-      {Registry, [keys: :duplicate, name: Tortoise.Events]},
+      {Registry, [keys: :unique, name: Tortoise.Registry, partitions: System.schedulers_online()]},
+      {Registry, [keys: :duplicate, name: Tortoise.Events, partitions: System.schedulers_online()]},
       {Tortoise.Supervisor, [strategy: :one_for_one]}
     ]
 

@@ -48,7 +48,7 @@ defmodule Tortoise.Connection do
       clean_session: Keyword.get(connection_opts, :clean_session)
     }
 
-    backoff = Keyword.get(connection_opts, :backoff, [])
+    backoff = Keyword.get(connection_opts, :backoff, [min_interval: 1000, max_interval: 60_000])
 
     # This allow us to either pass in a list of topics, or a
     # subscription struct. Passing in a subscription struct is helpful
@@ -489,10 +489,14 @@ defmodule Tortoise.Connection do
   end
 
   def handle_call(:disconnect, from, state) do
-    :ok = Events.dispatch(state.client_id, :status, :terminating)
-    :ok = Inflight.drain(state.client_id)
-    :ok = Controller.stop(state.client_id)
-    :ok = GenServer.reply(from, :ok)
+    try do
+      :ok = Events.dispatch(state.client_id, :status, :terminating)
+      :ok = Inflight.drain(state.client_id)
+      :ok = Controller.stop(state.client_id)
+      :ok = GenServer.reply(from, :ok)
+    catch
+      :exit, {:noproc, _} -> {:stop, :shutdown, state}
+    end
     {:stop, :shutdown, state}
   end
 
@@ -548,14 +552,14 @@ defmodule Tortoise.Connection do
   end
 
   defp reset_keep_alive(%State{keep_alive: nil} = state) do
-    ref = Process.send_after(self(), :ping, trunc(state.connect.keep_alive * .8) * 1000)
+    ref = Process.send_after(self(), :ping, trunc(state.connect.keep_alive * 0.8) * 1000)
     %State{state | keep_alive: ref}
   end
 
   defp reset_keep_alive(%State{keep_alive: previous_ref} = state) do
     # Cancel the previous timer, just in case one was already set
     _ = Process.cancel_timer(previous_ref)
-    ref = Process.send_after(self(), :ping, trunc(state.connect.keep_alive * .8) * 1000)
+    ref = Process.send_after(self(), :ping, trunc(state.connect.keep_alive * 0.8) * 1000)
     %State{state | keep_alive: ref}
   end
 
